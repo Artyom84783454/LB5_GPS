@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>График GPS</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #444;
+        }
+
+        #graph {
+            width: 100%;
+            max-width: 1200px;
+            height: 600px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        .form-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            max-width: 800px;
+            justify-content: center;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 6px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .form-group label {
+            font-size: 14px;
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        .form-group input {
+            width: 150px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        .form-group input:focus {
+            border-color: #007bff;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>График GPS</h1>
+
+    <div id="graph"></div>
+
+    <div class="form-container">
+        <div class="form-group">
+            <label for="emulationZoneSize">Розмір зони емуляції (км):</label>
+            <input type="number" id="emulationZoneSize" value="200">
+        </div>
+        <div class="form-group">
+            <label for="messageFrequency">Частота передачі сообщений (сообщ./сек):</label>
+            <input type="number" id="messageFrequency" value="1">
+        </div>
+        <div class="form-group">
+            <label for="satelliteSpeed">Скорость спутника (км/ч):</label>
+            <input type="number" id="satelliteSpeed" value="100">
+        </div>
+        <div class="form-group">
+            <label for="objectSpeed">Скорость объекта (км/ч):</label>
+            <input type="number" id="objectSpeed" value="10">
+        </div>
+    </div>
+
+    <button onclick="sendConfig()">Отправить параметры</button>
+
+    <script>
+        function fetchData() {
+            fetch('http://localhost:5000/data')
+                .then(response => response.ok ? response.json() : Promise.reject('Ошибка получения данных'))
+                .then(data => {
+                    console.log('Полученные данные:', data);  // Отладка данных
+                    if (data.status !== "error" && data.data && data.data.length > 0) {
+                        drawGraph(data);
+                    } else {
+                        console.error("Ошибка: данные не получены или пустые");
+                    }
+                })
+                .catch(error => console.error('Ошибка:', error));
+        }
+
+        function sendConfig() {
+            const config = {
+                emulationZoneSize: document.getElementById('emulationZoneSize').value,
+                messageFrequency: document.getElementById('messageFrequency').value,
+                satelliteSpeed: document.getElementById('satelliteSpeed').value,
+                objectSpeed: document.getElementById('objectSpeed').value
+            };
+
+            fetch('http://localhost:4001/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.ok ? response.json() : Promise.reject('Ошибка отправки конфигурации'))
+            .then(data => console.log('Конфигурация отправлена:', data))
+            .catch(error => console.error('Ошибка отправки конфигурации:', error));
+        }
+
+        function drawGraph(data) {
+            const traces = data.data.map(point => ({
+                x: [point.x],
+                y: [point.y],
+                mode: 'markers+text',
+                text: [`Спутник ${point.id.slice(-4)}`],
+                textposition: "top center",
+                marker: { color: 'green', size: 15 }
+            }));
+
+            if (data.calculated) {
+                traces.push({
+                    x: [data.calculated.x],
+                    y: [data.calculated.y],
+                    mode: 'markers+text',
+                    text: ['Вычисленная точка'],
+                    textposition: 'top center',
+                    marker: { color: 'red', size: 20 }
+                });
+            }
+
+            const layout = {
+                title: 'График GPS',
+                xaxis: { title: 'X', range: [0, 130] },
+                yaxis: { title: 'Y', range: [0, 130] },
+                showlegend: true,
+                width: 1200,
+                height: 600
+            };
+
+            Plotly.react('graph', traces, layout); // Замена newPlot на react
+        }
+
+        // Запускаем функцию fetchData каждые 5 секунд
+        setInterval(fetchData, 5000);
+    </script>
+</body>
+</html>
